@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>FiberControl PWA | Gestão de Cabos & Materiais</title>
+
+    <!-- PWA & Mobile Meta Tags -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FiberControl">
+    <meta name="theme-color" content="#0f0204">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        ruby: {
+                            950: '#0f0204',
+                            900: '#1e0509',
+                            800: '#3d0910',
+                            600: '#e60023',
+                            500: '#ff0f38',
+                            400: '#ff4d6d'
+                        },
+                        gold: {
+                            500: '#D4AF37',
+                            400: '#f3e5ab'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- SheetJS (Excel Export) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- html2pdf.js (PDF Generator) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <!-- Firebase SDKs (v10.12.0 Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+        
+        * {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        body {
+            background-color: #050102;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(230, 0, 35, 0.18) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(212, 175, 55, 0.08) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        /* Glassmorphism Panel */
+        .glass-panel {
+            background: rgba(18, 5, 8, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(230, 0, 35, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+        }
+
+        /* LED NEON BUTTON STYLING */
+        .btn-led-red {
+            background: linear-gradient(135deg, #ff0f38 0%, #b30019 100%);
+            color: #ffffff;
+            font-weight: 700;
+            box-shadow: 0 0 15px rgba(255, 15, 56, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+            border: 1px solid #ff4d6d;
+            transition: all 0.25s ease;
+        }
+        .btn-led-red:hover {
+            box-shadow: 0 0 25px rgba(255, 15, 56, 0.9), inset 0 1px 2px rgba(255, 255, 255, 0.6);
+            transform: translateY(-1px);
+        }
+
+        .btn-led-gold {
+            background: linear-gradient(135deg, #D4AF37 0%, #AA771C 100%);
+            color: #0f0204;
+            font-weight: 800;
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+            border: 1px solid #FCF6BA;
+            transition: all 0.25s ease;
+        }
+        .btn-led-gold:hover {
+            box-shadow: 0 0 25px rgba(212, 175, 55, 0.8), inset 0 1px 2px rgba(255, 255, 255, 0.8);
+            transform: translateY(-1px);
+        }
+
+        .btn-led-green {
+            background: linear-gradient(135deg, #10B981 0%, #047857 100%);
+            color: #ffffff;
+            font-weight: 700;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+            border: 1px solid #34D399;
+        }
+
+        /* LED Pulse indicator */
+        .led-indicator-on {
+            width: 8px;
+            height: 8px;
+            background-color: #ff0f38;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #ff0f38, 0 0 20px #ff0f38;
+            animation: pulse-led 1.8s infinite;
+        }
+
+        @keyframes pulse-led {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.85); }
+        }
+
+        canvas#signature-canvas {
+            touch-action: none !important;
+            cursor: crosshair;
+        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .animate-pop { animation: pop 0.2s ease-out; }
+        @keyframes pop {
+            0% { transform: scale(0.97); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col pb-20 lg:pb-0 select-none">
+
+    <!-- Dynamic PWA Manifest Injector -->
+    <script>
+        (function injectPWA() {
+            const manifest = {
+                name: "FiberControl PWA",
+                short_name: "FiberControl",
+                start_url: ".",
+                display: "standalone",
+                background_color: "#050102",
+                theme_color: "#0f0204",
+                icons: [{
+                    src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%230f0204'/><path d='M160 160h192v192H160z' fill='%23ff0f38'/></svg>",
+                    sizes: "512x512",
+                    type: "image/svg+xml"
+                }]
+            };
+            const stringManifest = JSON.stringify(manifest);
+            const blob = new Blob([stringManifest], {type: 'application/json'});
+            const link = document.createElement('link');
+            link.rel = 'manifest';
+            link.href = URL.createObjectURL(blob);
+            document.head.appendChild(link);
+
+            if ('serviceWorker' in navigator) {
+                const swCode = `
+                    self.addEventListener('install', (e) => self.skipWaiting());
+                    self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+                    self.addEventListener('fetch', (e) => e.respondWith(fetch(e.request)));
+                `;
+                const swBlob = new Blob([swCode], { type: 'application/javascript' });
+                navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(()=>{});
+            }
+        })();
+    </script>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full px-4 pointer-events-none"></div>
+
+    <!-- LOGIN MODAL (PERSISTENTE) -->
+    <div id="login-modal" class="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4">
+        <div class="glass-panel p-8 rounded-3xl w-full max-w-md border border-ruby-600/40 shadow-2xl relative animate-pop space-y-6">
+            <div class="text-center space-y-2">
+                <div class="inline-flex p-4 rounded-2xl bg-ruby-950 border border-ruby-600/50 text-ruby-500 text-3xl mb-1 shadow-lg shadow-ruby-600/30">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <h1 class="text-2xl font-extrabold tracking-tight text-white">FiberControl Pro</h1>
+                <p class="text-xs text-slate-400">Painel de Gestão de Cabos & Estoque</p>
+            </div>
+
+            <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Usuário ou E-mail Admin</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-user absolute left-4 top-3.5 text-slate-500 text-sm"></i>
+                        <input type="text" id="login-email" required placeholder="admin" value="admin" class="w-full bg-slate-950 border border-ruby-600/30 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-100 focus:border-ruby-500 focus:outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">Senha de Acesso</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-4 top-3.5 text-slate-500 text-sm"></i>
+                        <input type="password" id="login-password" required placeholder="33171493" value="33171493" class="w-full bg-slate-950 border border-ruby-600/30 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-100 focus:border-ruby-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 pt-1">
+                    <input type="checkbox" id="remember-me" checked class="accent-ruby-600 w-4 h-4 rounded">
+                    <label for="remember-me" class="text-xs text-slate-300 font-medium">Manter minha sessão conectada</label>
+                </div>
+
+                <button type="submit" class="w-full py-3.5 rounded-xl btn-led-red tracking-wide mt-2">
+                    <i class="fa-solid fa-right-to-bracket mr-2"></i> ACESSAR SISTEMA
+                </button>
+            </form>
+
+            <div class="pt-2 text-center text-[11px] text-slate-500 border-t border-ruby-950">
+                Técnicos não precisam logar. O Admin autoriza e vincula as saídas.
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN HEADER -->
+    <header class="glass-panel border-b border-ruby-600/30 sticky top-0 z-30 px-4 lg:px-8 py-3.5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="p-2.5 rounded-xl bg-ruby-950 border border-ruby-600/50 text-ruby-500 text-xl shadow-md">
+                <i class="fa-solid fa-network-wired"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-extrabold tracking-wide text-white flex items-center gap-2">
+                    FiberControl
+                    <span id="connection-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-ruby-600/20 text-ruby-400 border border-ruby-500/30 flex items-center gap-1.5">
+                        <span class="led-indicator-on"></span> Online
+                    </span>
+                </h1>
+                <p id="user-role-display" class="text-xs text-slate-400">Administrador</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button onclick="handleLogout()" class="px-3.5 py-2 rounded-xl bg-ruby-950 border border-ruby-600/40 text-ruby-400 hover:bg-ruby-900 transition text-xs font-bold flex items-center gap-2 shadow">
+                <i class="fa-solid fa-power-off"></i> <span class="hidden sm:inline">Sair</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- BODY CONTAINER -->
+    <div class="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto">
+        
+        <!-- SIDEBAR NAVIGATION -->
+        <aside class="hidden lg:flex flex-col w-64 glass-panel border-r border-ruby-600/30 p-4 gap-2 shrink-0 my-4 rounded-2xl ml-4">
+            <div class="text-[10px] uppercase tracking-wider text-ruby-400 font-extrabold px-3 py-1">Menu Principal</div>
+            <nav class="flex flex-col gap-1.5">
+                <button onclick="switchTab('dashboard')" id="dt-nav-dashboard" class="dt-nav-btn flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition text-ruby-400 bg-ruby-950/80 border border-ruby-600/40">
+                    <i class="fa-solid fa-chart-pie w-5"></i> Dashboard
+                </button>
+                <button onclick="switchTab('new-loan')" id="dt-nav-new-loan" class="dt-nav-btn flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition text-slate-400 hover:text-slate-200 hover:bg-ruby-950/40">
+                    <i class="fa-solid fa-plus-circle w-5"></i> Nova Saída
+                </button>
+                <button onclick="switchTab('active-loans')" id="dt-nav-active-loans" class="dt-nav-btn flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition text-slate-400 hover:text-slate-200 hover:bg-ruby-950/40">
+                    <i class="fa-solid fa-boxes-stacked w-5"></i> Materiais em Campo
+                </button>
+                <button onclick="switchTab('history')" id="dt-nav-history" class="dt-nav-btn flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition text-slate-400 hover:text-slate-200 hover:bg-ruby-950/40">
+                    <i class="fa-solid fa-clock-rotate-left w-5"></i> Histórico & Backup
+                </button>
+                <button onclick="switchTab('users-admin')" id="dt-nav-users-admin" class="dt-nav-btn flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition text-slate-400 hover:text-slate-200 hover:bg-ruby-950/40">
+                    <i class="fa-solid fa-users-gear w-5"></i> Cadastros de Técnicos
+                </button>
+            </nav>
+        </aside>
+
+        <!-- MAIN VIEW PORT -->
+        <main class="flex-1 p-4 lg:p-6 overflow-y-auto">
+
+            <!-- TAB: DASHBOARD -->
+            <section id="tab-dashboard" class="tab-content space-y-6">
+                <!-- Header Filter -->
+                <div class="glass-panel p-5 rounded-2xl border border-ruby-600/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-extrabold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-chart-line text-ruby-500"></i> Painel Geral & Indicadores
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Visão consolidada de bobinas e metragens em campo.</p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap w-full md:w-auto">
+                        <input type="date" id="dash-start-date" class="bg-slate-950 border border-ruby-600/30 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none">
+                        <span class="text-slate-500 text-xs">até</span>
+                        <input type="date" id="dash-end-date" class="bg-slate-950 border border-ruby-600/30 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none">
+                        <button onclick="renderDashboard()" class="px-4 py-2 rounded-xl btn-led-red text-xs font-bold transition">
+                            Filtrar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- KPI Cards -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="glass-panel p-5 rounded-2xl border border-ruby-600/30">
+                        <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Técnicos Cadastrados</p>
+                        <h3 id="kpi-techs" class="text-2xl lg:text-3xl font-extrabold text-white mt-2">0</h3>
+                    </div>
+                    <div class="glass-panel p-5 rounded-2xl border border-ruby-600/30">
+                        <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Saídas Ativas</p>
+                        <h3 id="kpi-active" class="text-2xl lg:text-3xl font-extrabold text-ruby-400 mt-2">0</h3>
+                    </div>
+                    <div class="glass-panel p-5 rounded-2xl border border-ruby-600/30">
+                        <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Metros em Campo</p>
+                        <h3 id="kpi-meters" class="text-2xl lg:text-3xl font-extrabold text-gold-500 mt-2">0m</h3>
+                    </div>
+                    <div class="glass-panel p-5 rounded-2xl border border-ruby-600/30">
+                        <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Retenção > 7 Dias</p>
+                        <h3 id="kpi-alerts" class="text-2xl lg:text-3xl font-extrabold text-red-500 mt-2">0</h3>
+                    </div>
+                </div>
+
+                <!-- Report Table -->
+                <div class="glass-panel p-5 rounded-2xl border border-ruby-600/30 space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-list-ul text-ruby-500"></i> Relatório de Saídas do Período
+                        </h3>
+                        <button onclick="exportToExcel()" class="px-3 py-1.5 btn-led-green rounded-xl text-xs font-bold transition flex items-center gap-2">
+                            <i class="fa-solid fa-file-excel"></i> Exportar Excel
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-ruby-900 text-[10px] text-ruby-400 uppercase tracking-wider">
+                                    <th class="py-3 px-3">Data/Hora</th>
+                                    <th class="py-3 px-3">Técnico</th>
+                                    <th class="py-3 px-3">Materiais / Bobinas</th>
+                                    <th class="py-3 px-3">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dash-report-tbody" class="text-xs divide-y divide-ruby-950/60">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB: NOVA SAÍDA DE CABO (COM SUPORTE A MÚLTIPLOS CABOS) -->
+            <section id="tab-new-loan" class="tab-content hidden space-y-6">
+                <div class="glass-panel p-6 rounded-3xl border border-ruby-600/30 max-w-3xl mx-auto space-y-6">
+                    <div class="border-b border-ruby-900 pb-4">
+                        <h2 class="text-xl font-extrabold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-plus-circle text-ruby-500"></i> Registrar Nova Saída de Materiais
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">Selecione o técnico, adicione os cabos/materiais e recolha a assinatura digital.</p>
+                    </div>
+
+                    <form id="form-new-loan" onsubmit="handleCreateLoan(event)" class="space-y-6">
+                        <!-- Seleção do Técnico -->
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Técnico Responsável *</label>
+                            <select id="loan-tech-select" required class="w-full bg-slate-950 border border-ruby-600/40 rounded-xl px-4 py-3 text-xs text-slate-100 focus:border-ruby-500 focus:outline-none">
+                                <option value="">-- Selecione o Técnico --</option>
+                            </select>
+                        </div>
+
+                        <!-- Carrinho de Múltiplos Itens -->
+                        <div class="p-4 rounded-2xl bg-ruby-950/40 border border-ruby-600/30 space-y-4">
+                            <div class="flex justify-between items-center">
+                                <h4 class="text-xs font-bold uppercase text-gold-500 tracking-wider">Itens & Cabos Retirados</h4>
+                                <button type="button" onclick="addMaterialRow()" class="px-3 py-1.5 btn-led-gold text-[11px] rounded-lg">
+                                    <i class="fa-solid fa-plus mr-1"></i> Adicionar Item
+                                </button>
+                            </div>
+
+                            <div id="material-items-container" class="space-y-3">
+                                <!-- Linha de material injetada dinamicamente -->
+                            </div>
+                        </div>
+
+                        <!-- Foto do Técnico/Bobina -->
+                        <div class="p-4 rounded-2xl bg-ruby-950/40 border border-ruby-600/30 space-y-4">
+                            <div class="flex items-center justify-between">
+                                <label class="block text-xs font-semibold text-ruby-400 uppercase tracking-wider">Capturar Foto do Material / Técnico</label>
+                                <button type="button" onclick="switchCameraFacing()" class="text-[11px] text-slate-400 hover:text-white flex items-center gap-1">
+                                    <i class="fa-solid fa-arrows-rotate"></i> Alternar Câmera
+                                </button>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" onclick="startCamera()" class="px-3.5 py-2 bg-slate-900 text-slate-200 border border-ruby-600/30 rounded-xl text-xs font-bold flex items-center gap-2">
+                                    <i class="fa-solid fa-camera"></i> Ativar Câmera
+                                </button>
+                                <button type="button" onclick="takeSnapshot()" id="btn-snapshot" disabled class="px-3.5 py-2 btn-led-gold rounded-xl text-xs font-bold disabled:opacity-40 flex items-center gap-2">
+                                    <i class="fa-solid fa-circle-dot"></i> Capturar Foto
+                                </button>
+                                <label class="px-3.5 py-2 bg-slate-900 text-slate-300 border border-ruby-600/30 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-2">
+                                    <i class="fa-solid fa-upload"></i> Upload
+                                    <input type="file" accept="image/*" onchange="handleImageUpload(event)" class="hidden">
+                                </label>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div class="relative h-44 rounded-xl overflow-hidden bg-black border border-ruby-900 flex items-center justify-center">
+                                    <video id="camera-video" autoplay playsinline class="w-full h-full object-cover"></video>
+                                    <span id="camera-off-txt" class="absolute text-xs text-slate-500">Câmera Desligada</span>
+                                </div>
+                                <div class="relative h-44 rounded-xl overflow-hidden bg-slate-950 border border-ruby-900 flex items-center justify-center">
+                                    <img id="camera-preview-img" src="" class="w-full h-full object-cover hidden" alt="Foto">
+                                    <span id="preview-off-txt" class="absolute text-xs text-slate-500">Nenhuma foto registrada</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Trigger Modal Assinatura -->
+                        <div class="p-4 rounded-2xl bg-ruby-950/40 border border-ruby-600/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                            <div>
+                                <h4 class="text-xs font-semibold text-ruby-400 uppercase tracking-wider">Assinatura Digital do Técnico *</h4>
+                                <p id="sig-status-txt" class="text-xs text-slate-400 mt-0.5">Nenhuma assinatura capturada.</p>
+                            </div>
+                            <button type="button" onclick="openSignatureModal()" class="w-full sm:w-auto px-5 py-3 bg-slate-900 border border-ruby-600/40 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-signature text-gold-500 text-sm"></i> Abrir Assinatura
+                            </button>
+                        </div>
+
+                        <button type="submit" class="w-full py-4 rounded-xl btn-led-red text-base font-extrabold shadow-lg flex items-center justify-center gap-2 tracking-wide">
+                            <i class="fa-solid fa-check-circle text-lg"></i> FINALIZAR & REGISTRAR SAÍDA
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- TAB: EMPRÉSTIMOS ATIVOS -->
+            <section id="tab-active-loans" class="tab-content hidden space-y-6">
+                <div class="glass-panel p-5 rounded-2xl border border-ruby-600/30 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h2 class="text-xl font-extrabold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-boxes-stacked text-ruby-500"></i> Materiais em Campo
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Gerencie devoluções e envie comprovantes via WhatsApp.</p>
+                    </div>
+                    <div class="w-full md:w-64">
+                        <input type="text" id="search-active-input" oninput="renderActiveLoans()" placeholder="Buscar por técnico ou bobina..." class="w-full bg-slate-950 border border-ruby-600/30 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none">
+                    </div>
+                </div>
+
+                <div id="active-loans-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Dynamic loan cards -->
+                </div>
+            </section>
+
+            <!-- TAB: HISTÓRICO & BACKUP -->
+            <section id="tab-history" class="tab-content hidden space-y-6">
+                <div class="glass-panel p-6 rounded-3xl border border-ruby-600/30 space-y-6">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-ruby-900 pb-4">
+                        <div>
+                            <h2 class="text-xl font-extrabold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-clock-rotate-left text-ruby-500"></i> Histórico & Devoluções
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-0.5">Consulte devoluções concluídas e faça downloads de backups.</p>
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <button onclick="exportToExcel()" class="px-3.5 py-2 btn-led-green rounded-xl text-xs font-bold flex items-center gap-1.5">
+                                <i class="fa-solid fa-file-excel"></i> Excel (.xlsx)
+                            </button>
+                            <button onclick="exportJSONBackup()" class="px-3.5 py-2 bg-slate-900 border border-ruby-600/30 text-white rounded-xl text-xs font-bold flex items-center gap-1.5">
+                                <i class="fa-solid fa-download"></i> Backup JSON
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b border-ruby-900 text-[10px] text-ruby-400 uppercase tracking-wider">
+                                    <th class="py-3 px-3">Técnico</th>
+                                    <th class="py-3 px-3">Itens Devolvidos</th>
+                                    <th class="py-3 px-3">Data Saída</th>
+                                    <th class="py-3 px-3">Data Devolução</th>
+                                    <th class="py-3 px-3">Operador</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-tbody" class="text-xs divide-y divide-ruby-950/60">
+                                <!-- Dynamic history -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB: CADASTRO DE TÉCNICOS & MATERIAIS -->
+            <section id="tab-users-admin" class="tab-content hidden space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Gerenciar Técnicos -->
+                    <div class="glass-panel p-6 rounded-3xl border border-ruby-600/30 space-y-4">
+                        <div class="flex justify-between items-center border-b border-ruby-900 pb-3">
+                            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-users text-ruby-500"></i> Cadastro de Técnicos
+                            </h3>
+                            <button onclick="openUserModal()" class="px-3 py-1.5 btn-led-red rounded-xl text-xs font-bold">
+                                <i class="fa-solid fa-plus"></i> Novo Técnico
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-ruby-900 text-[10px] text-ruby-400 uppercase">
+                                        <th class="py-2.5 px-3">Nome</th>
+                                        <th class="py-2.5 px-3">WhatsApp / Telefone</th>
+                                        <th class="py-2.5 px-3 text-right">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="users-tbody" class="text-xs divide-y divide-ruby-950/60">
+                                    <!-- Dynamic Techs -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Gerenciar Tipos de Cabos / Materiais -->
+                    <div class="glass-panel p-6 rounded-3xl border border-ruby-600/30 space-y-4">
+                        <div class="flex justify-between items-center border-b border-ruby-900 pb-3">
+                            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-box text-gold-500"></i> Tipos de Cabos / Materiais
+                            </h3>
+                            <button onclick="openMaterialModal()" class="px-3 py-1.5 btn-led-gold rounded-xl text-xs font-bold">
+                                <i class="fa-solid fa-plus"></i> Novo Material
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-ruby-900 text-[10px] text-ruby-400 uppercase">
+                                        <th class="py-2.5 px-3">Material</th>
+                                        <th class="py-2.5 px-3">Unidade</th>
+                                        <th class="py-2.5 px-3 text-right">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="materials-tbody" class="text-xs divide-y divide-ruby-950/60">
+                                    <!-- Dynamic Materials -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- MOBILE NAVIGATION BAR -->
+    <nav class="lg:hidden fixed bottom-0 left-0 right-0 z-40 glass-panel border-t border-ruby-600/30 px-2 py-2.5 flex justify-around items-center">
+        <button onclick="switchTab('dashboard')" id="mb-nav-dashboard" class="mb-nav-btn flex flex-col items-center gap-1 text-ruby-400">
+            <i class="fa-solid fa-chart-pie text-lg"></i>
+            <span class="text-[10px] font-bold">Painel</span>
+        </button>
+        <button onclick="switchTab('new-loan')" id="mb-nav-new-loan" class="mb-nav-btn flex flex-col items-center gap-1 text-slate-400">
+            <i class="fa-solid fa-plus-circle text-lg"></i>
+            <span class="text-[10px] font-bold">Nova Saída</span>
+        </button>
+        <button onclick="switchTab('active-loans')" id="mb-nav-active-loans" class="mb-nav-btn flex flex-col items-center gap-1 text-slate-400">
+            <i class="fa-solid fa-boxes-stacked text-lg"></i>
+            <span class="text-[10px] font-bold">Ativos</span>
+        </button>
+        <button onclick="switchTab('history')" id="mb-nav-history" class="mb-nav-btn flex flex-col items-center gap-1 text-slate-400">
+            <i class="fa-solid fa-clock-rotate-left text-lg"></i>
+            <span class="text-[10px] font-bold">Histórico</span>
+        </button>
+        <button onclick="switchTab('users-admin')" id="mb-nav-users-admin" class="mb-nav-btn flex flex-col items-center gap-1 text-slate-400">
+            <i class="fa-solid fa-users-gear text-lg"></i>
+            <span class="text-[10px] font-bold">Técnicos</span>
+        </button>
+    </nav>
+
+    <!-- CANVAS MODAL PARA ASSINATURA DIGITAL -->
+    <div id="modal-signature" class="fixed inset-0 z-50 bg-black/95 hidden flex flex-col justify-between p-4 animate-pop">
+        <div class="flex justify-between items-center border-b border-ruby-900 pb-3">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-signature text-gold-500 text-xl"></i>
+                <h3 class="text-base font-bold text-white">Assinatura Digital do Técnico</h3>
+            </div>
+            <button onclick="closeSignatureModal()" class="p-2 text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="flex-1 my-4 bg-white rounded-2xl border-2 border-ruby-600/40 relative overflow-hidden flex items-center justify-center">
+            <canvas id="signature-canvas" class="w-full h-full"></canvas>
+            <span class="absolute top-3 left-4 text-xs font-semibold text-slate-400 pointer-events-none select-none">Assine com o dedo ou caneta abaixo</span>
+        </div>
+
+        <div class="flex items-center justify-between gap-3 pt-2">
+            <button type="button" onclick="clearSignatureCanvas()" class="px-5 py-3 bg-red-950/60 border border-red-500/30 text-red-400 rounded-xl text-xs font-bold flex items-center gap-2">
+                <i class="fa-solid fa-eraser"></i> Limpar
+            </button>
+            <button type="button" onclick="saveSignatureCanvas()" class="flex-1 py-3.5 btn-led-gold rounded-xl text-xs font-extrabold flex items-center justify-center gap-2">
+                <i class="fa-solid fa-check"></i> Confirmar Assinatura
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL CADASTRO TÉCNICO -->
+    <div id="modal-user" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="glass-panel p-6 rounded-3xl border border-ruby-600/30 w-full max-w-md space-y-4 animate-pop">
+            <h3 class="text-base font-bold text-white">Cadastrar Técnico</h3>
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Nome Completo *</label>
+                <input type="text" id="usr-name" placeholder="Ex: João da Silva" class="w-full bg-slate-950 border border-ruby-600/30 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Telefone WhatsApp (DDD + Número) *</label>
+                <input type="text" id="usr-phone" placeholder="5582999999999" class="w-full bg-slate-950 border border-ruby-600/30 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none">
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeUserModal()" class="px-4 py-2 bg-slate-900 text-slate-300 rounded-xl text-xs font-semibold">Cancelar</button>
+                <button onclick="saveUserFirebase()" class="px-5 py-2 btn-led-red rounded-xl text-xs font-bold">Salvar Técnico</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL CADASTRO MATERIAL -->
+    <div id="modal-material" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="glass-panel p-6 rounded-3xl border border-ruby-600/30 w-full max-w-md space-y-4 animate-pop">
+            <h3 class="text-base font-bold text-white">Cadastrar Cabo / Material</h3>
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Nome do Cabo / Material *</label>
+                <input type="text" id="mat-name" placeholder="Ex: Cabo Drop Compacto 1FO" class="w-full bg-slate-950 border border-ruby-600/30 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Unidade *</label>
+                <select id="mat-unit" class="w-full bg-slate-950 border border-ruby-600/30 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none">
+                    <option value="Metros">Metros (m)</option>
+                    <option value="Unidades">Unidades (un)</option>
+                    <option value="Rolos">Rolos</option>
+                </select>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeMaterialModal()" class="px-4 py-2 bg-slate-900 text-slate-300 rounded-xl text-xs font-semibold">Cancelar</button>
+                <button onclick="saveMaterialFirebase()" class="px-5 py-2 btn-led-gold rounded-xl text-xs font-bold">Salvar Material</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PDF TEMPLATE OCULTO PARA IMPRESSÃO -->
+    <div id="pdf-container" class="hidden">
+        <div id="pdf-printable-area" style="padding:40px; font-family:'Plus Jakarta Sans', sans-serif; color:#0f172a; background:#ffffff; width:800px;">
+            <div style="border-bottom:3px solid #e60023; padding-bottom:15px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h1 style="font-size:24px; font-weight:800; color:#0f0204; margin:0;">FIBERCONTROL PRO</h1>
+                    <p style="font-size:11px; color:#64748b; margin:2px 0 0 0;">Termo de Responsabilidade e Saída de Materiais</p>
+                </div>
+                <div style="text-align:right;">
+                    <span id="pdf-doc-date" style="font-size:11px; font-weight:700; color:#475569;"></span>
+                </div>
+            </div>
+
+            <div style="margin-bottom:20px; background:#f8fafc; padding:15px; border-radius:12px; border:1px solid #e2e8f0;">
+                <h3 style="font-size:13px; font-weight:700; color:#e60023; margin:0 0 8px 0;">1. TÉCNICO RESPONSÁVEL</h3>
+                <p style="font-size:12px; margin:3px 0;"><strong>Nome:</strong> <span id="pdf-tech-name"></span></p>
+                <p style="font-size:12px; margin:3px 0;"><strong>Telefone:</strong> <span id="pdf-tech-phone"></span></p>
+            </div>
+
+            <div style="margin-bottom:20px; background:#f8fafc; padding:15px; border-radius:12px; border:1px solid #e2e8f0;">
+                <h3 style="font-size:13px; font-weight:700; color:#e60023; margin:0 0 10px 0;">2. MATERIAIS / CABOS RETIRADOS</h3>
+                <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                    <thead>
+                        <tr style="border-b:2px solid #cbd5e1; text-align:left;">
+                            <th style="padding:6px;">Item</th>
+                            <th style="padding:6px;">Bobina / Piloto</th>
+                            <th style="padding:6px;">Quantidade</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pdf-items-tbody">
+                        <!-- Itens do PDF -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="margin-bottom:20px; text-align:center;">
+                <h3 style="font-size:12px; font-weight:700; color:#475569; margin-bottom:8px;">REGISTRO FOTOGRÁFICO</h3>
+                <img id="pdf-photo-img" src="" style="max-height:170px; border-radius:8px; border:1px solid #cbd5e1; display:inline-block;" alt="Foto">
+            </div>
+
+            <p style="font-size:10px; color:#475569; text-align:justify; line-height:1.5;">
+                Declaro ter recebido os materiais e cabos acima relacionados em perfeitas condições de uso, assumindo inteira responsabilidade pela guarda, conservação e correta aplicação dos mesmos.
+            </p>
+
+            <div style="margin-top:30px; display:flex; justify-content:space-between; align-items:flex-end;">
+                <div style="text-align:center; width:220px;">
+                    <img id="pdf-sig-img" src="" style="max-height:55px; border-bottom:1px solid #94a3b8; margin:0 auto 5px auto;" alt="Assinatura">
+                    <p style="font-size:11px; font-weight:700; margin:0;">Assinatura do Técnico</p>
+                </div>
+                <div style="text-align:right; font-size:10px; color:#94a3b8;">
+                    Gerado por FiberControl PWA
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS ENGINE -->
+    <script>
+        // CONFIGURAÇÃO DO FIREBASE (REALTIME DATABASE)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDLUBogZ8RgEsVujhjv1XHvDGMM8VeVqZY",
+            authDomain: "cabos-meu.firebaseapp.com",
+            databaseURL: "https://cabos-meu-default-rtdb.firebaseio.com",
+            projectId: "cabos-meu",
+            storageBucket: "cabos-meu.firebasestorage.app",
+            messagingSenderId: "278092544824",
+            appId: "1:278092544824:web:b3de797fb1f5a2ef0adfcd"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // ESTADO GLOBAL
+        let currentUser = null;
+        let dbUsers = {};
+        let dbMaterials = {};
+        let dbLoans = {};
+        let dbHistory = {};
+
+        let cameraStream = null;
+        let cameraFacingMode = 'environment';
+        let capturedPhotoData = null;
+        let capturedSignatureData = null;
+
+        // TOAST SYSTEM
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `p-3.5 rounded-2xl text-xs font-bold shadow-2xl border flex items-center gap-2 transition-all transform translate-y-2 opacity-0 pointer-events-auto ${
+                type === 'success' ? 'bg-slate-950 border-ruby-500/50 text-ruby-400' : 'bg-slate-950 border-red-500/80 text-red-400'
+            }`;
+            toast.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation'} text-base"></i> <span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => { toast.classList.remove('translate-y-2', 'opacity-0'); }, 50);
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ON LOAD & PERSISTÊNCIA DE LOGIN
+        window.addEventListener('DOMContentLoaded', () => {
+            checkAuthSession();
+            setupFirebaseRealtimeListeners();
+            initSignatureCanvas();
+            addMaterialRow(); // Adiciona 1º linha de material por padrão
+
+            const today = new Date();
+            const past = new Date();
+            past.setDate(today.getDate() - 30);
+            document.getElementById('dash-start-date').valueAsDate = past;
+            document.getElementById('dash-end-date').valueAsDate = today;
+        });
+
+        // PERSISTÊNCIA DE LOGIN ADMIN
+        function checkAuthSession() {
+            const savedSession = localStorage.getItem('fibercontrol_admin_session');
+            if (savedSession) {
+                currentUser = JSON.parse(savedSession);
+                document.getElementById('login-modal').classList.add('hidden');
+                showToast(`Sessão ativa: ${currentUser.name}`);
+            }
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            const userOrEmail = document.getElementById('login-email').value.trim();
+            const pass = document.getElementById('login-password').value.trim();
+            const remember = document.getElementById('remember-me').checked;
+
+            // Admin login estático ou via base
+            if ((userOrEmail === 'admin' || userOrEmail === 'admin@fibercontrol.com') && pass === '33171493') {
+                currentUser = { name: 'Administrador Master', role: 'Admin' };
+                if (remember) {
+                    localStorage.setItem('fibercontrol_admin_session', JSON.stringify(currentUser));
+                }
+                document.getElementById('login-modal').classList.add('hidden');
+                showToast('Login realizado com sucesso!');
+                switchTab('dashboard');
+            } else {
+                showToast('Credenciais inválidas!', 'error');
+            }
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('fibercontrol_admin_session');
+            currentUser = null;
+            document.getElementById('login-modal').classList.remove('hidden');
+            showToast('Você saiu do sistema.');
+        }
+
+        // LISTENERS DO FIREBASE
+        function setupFirebaseRealtimeListeners() {
+            db.ref('techs').on('value', (snapshot) => {
+                dbUsers = snapshot.val() || {};
+                populateTechDropdowns();
+                renderUsersTable();
+            });
+
+            db.ref('materials').on('value', (snapshot) => {
+                dbMaterials = snapshot.val() || {};
+                renderMaterialsTable();
+                updateAllMaterialSelects();
+            });
+
+            db.ref('loans').on('value', (snapshot) => {
+                dbLoans = snapshot.val() || {};
+                renderDashboard();
+                renderActiveLoans();
+            });
+
+            db.ref('history').on('value', (snapshot) => {
+                dbHistory = snapshot.val() || {};
+                renderDashboard();
+                renderHistoryTable();
+            });
+        }
+
+        // MÚLTIPLOS MATERIAIS NA NOVA SAÍDA
+        function addMaterialRow() {
+            const container = document.getElementById('material-items-container');
+            const rowId = 'mat-row-' + Date.now();
+            const div = document.createElement('div');
+            div.id = rowId;
+            div.className = 'grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-slate-950/80 p-3 rounded-xl border border-ruby-900 animate-pop';
+            
+            div.innerHTML = `
+                <div class="sm:col-span-5">
+                    <select class="mat-select-item w-full bg-slate-900 border border-ruby-600/30 rounded-lg px-3 py-2 text-xs text-white focus:outline-none" required>
+                        <option value="">-- Selecione o Cabo / Material --</option>
+                    </select>
+                </div>
+                <div class="sm:col-span-3">
+                    <input type="text" placeholder="Bobina / Piloto" class="mat-reel-item w-full bg-slate-900 border border-ruby-600/30 rounded-lg px-3 py-2 text-xs text-white focus:outline-none" required>
+                </div>
+                <div class="sm:col-span-3">
+                    <input type="number" step="0.1" placeholder="Metros / Qtd" class="mat-meters-item w-full bg-slate-900 border border-ruby-600/30 rounded-lg px-3 py-2 text-xs text-white focus:outline-none" required>
+                </div>
+                <div class="sm:col-span-1 text-right">
+                    <button type="button" onclick="removeMaterialRow('${rowId}')" class="p-2 bg-red-950 text-red-400 rounded-lg hover:bg-red-900 text-xs">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            `;
+            container.appendChild(div);
+            populateMaterialSelect(div.querySelector('.mat-select-item'));
+        }
+
+        function removeMaterialRow(rowId) {
+            const container = document.getElementById('material-items-container');
+            if (container.children.length > 1) {
+                document.getElementById(rowId).remove();
+            } else {
+                showToast('A saída deve conter ao menos 1 item.', 'error');
+            }
+        }
+
+        function populateMaterialSelect(selectEl) {
+            selectEl.innerHTML = '<option value="">-- Selecione o Cabo / Material --</option>';
+            Object.keys(dbMaterials).forEach(id => {
+                const m = dbMaterials[id];
+                selectEl.innerHTML += `<option value="${m.name} (${m.unit})">${m.name} (${m.unit})</option>`;
+            });
+        }
+
+        function updateAllMaterialSelects() {
+            document.querySelectorAll('.mat-select-item').forEach(select => populateMaterialSelect(select));
+        }
+
+        // SALVAR NOVA SAÍDA COM MÚLTIPLOS ITENS
+        function handleCreateLoan(e) {
+            e.preventDefault();
+            const techId = document.getElementById('loan-tech-select').value;
+            if (!techId) {
+                showToast('Selecione o Técnico!', 'error');
+                return;
+            }
+
+            const items = [];
+            document.querySelectorAll('#material-items-container > div').forEach(row => {
+                const matSelect = row.querySelector('.mat-select-item').value;
+                const reel = row.querySelector('.mat-reel-item').value.trim();
+                const meters = row.querySelector('.mat-meters-item').value;
+                if (matSelect && reel && meters) {
+                    items.push({ material: matSelect, reel, meters });
+                }
+            });
+
+            if (items.length === 0) {
+                showToast('Adicione ao menos um material válido.', 'error');
+                return;
+            }
+
+            if (!capturedPhotoData) {
+                showToast('Por favor, tire a foto do material ou técnico!', 'error');
+                return;
+            }
+            if (!capturedSignatureData) {
+                showToast('A assinatura do técnico é obrigatória!', 'error');
+                return;
+            }
+
+            const tech = dbUsers[techId];
+            const newLoan = {
+                techName: tech.name,
+                techPhone: tech.phone,
+                items: items,
+                photoUrl: capturedPhotoData,
+                signatureUrl: capturedSignatureData,
+                createdAt: new Date().toISOString()
+            };
+
+            db.ref('loans').push(newLoan, (err) => {
+                if (!err) {
+                    showToast('Saída lançada com sucesso!');
+                    document.getElementById('form-new-loan').reset();
+                    capturedPhotoData = null;
+                    capturedSignatureData = null;
+                    document.getElementById('camera-preview-img').classList.add('hidden');
+                    document.getElementById('preview-off-txt').classList.remove('hidden');
+                    document.getElementById('sig-status-txt').textContent = 'Nenhuma assinatura capturada.';
+                    switchTab('active-loans');
+                }
+            });
+        }
+
+        // NAVEGAÇÃO ENTRE ABAS
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+            document.querySelectorAll('.dt-nav-btn').forEach(btn => {
+                btn.classList.remove('text-ruby-400', 'bg-ruby-950/80', 'border', 'border-ruby-600/40');
+                btn.classList.add('text-slate-400');
+            });
+            const activeDtBtn = document.getElementById(`dt-nav-${tabId}`);
+            if (activeDtBtn) activeDtBtn.classList.add('text-ruby-400', 'bg-ruby-950/80', 'border', 'border-ruby-600/40');
+
+            document.querySelectorAll('.mb-nav-btn').forEach(btn => {
+                btn.classList.remove('text-ruby-400');
+                btn.classList.add('text-slate-400');
+            });
+            const activeMbBtn = document.getElementById(`mb-nav-${tabId}`);
+            if (activeMbBtn) activeMbBtn.classList.add('text-ruby-400');
+        }
+
+        // CÂMERA E FOTO
+        async function startCamera() {
+            const video = document.getElementById('camera-video');
+            const offTxt = document.getElementById('camera-off-txt');
+            const snapshotBtn = document.getElementById('btn-snapshot');
+
+            if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: cameraFacingMode, width: { ideal: 1280 } }
+                });
+                video.srcObject = cameraStream;
+                offTxt.classList.add('hidden');
+                snapshotBtn.removeAttribute('disabled');
+                showToast('Câmera pronta.');
+            } catch (err) {
+                showToast('Erro ao acessar a câmera.', 'error');
+            }
+        }
+
+        function switchCameraFacing() {
+            cameraFacingMode = cameraFacingMode === 'user' ? 'environment' : 'user';
+            startCamera();
+        }
+
+        function takeSnapshot() {
+            const video = document.getElementById('camera-video');
+            const previewImg = document.getElementById('camera-preview-img');
+            const previewOffTxt = document.getElementById('preview-off-txt');
+
+            if (!cameraStream) return;
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            capturedPhotoData = canvas.toDataURL('image/jpeg', 0.85);
+            previewImg.src = capturedPhotoData;
+            previewImg.classList.remove('hidden');
+            previewOffTxt.classList.add('hidden');
+            showToast('Foto capturada!');
+        }
+
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                capturedPhotoData = evt.target.result;
+                const previewImg = document.getElementById('camera-preview-img');
+                previewImg.src = capturedPhotoData;
+                previewImg.classList.remove('hidden');
+                document.getElementById('preview-off-txt').classList.add('hidden');
+                showToast('Imagem carregada!');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // ASSINATURA DIGITAL CANVAS
+        let sigCanvas, sigCtx, isSigning = false;
+
+        function initSignatureCanvas() {
+            sigCanvas = document.getElementById('signature-canvas');
+            sigCtx = sigCanvas.getContext('2d');
+
+            function resize() {
+                const rect = sigCanvas.parentElement.getBoundingClientRect();
+                sigCanvas.width = rect.width;
+                sigCanvas.height = rect.height;
+                sigCtx.lineWidth = 3;
+                sigCtx.lineCap = 'round';
+                sigCtx.strokeStyle = '#0f0204';
+            }
+            window.addEventListener('resize', resize);
+            setTimeout(resize, 400);
+
+            sigCanvas.addEventListener('pointerdown', (e) => {
+                isSigning = true;
+                sigCtx.beginPath();
+                sigCtx.moveTo(e.offsetX, e.offsetY);
+            });
+
+            sigCanvas.addEventListener('pointermove', (e) => {
+                if (!isSigning) return;
+                sigCtx.lineTo(e.offsetX, e.offsetY);
+                sigCtx.stroke();
+            });
+
+            sigCanvas.addEventListener('pointerup', () => isSigning = false);
+            sigCanvas.addEventListener('pointerleave', () => isSigning = false);
+        }
+
+        function openSignatureModal() {
+            document.getElementById('modal-signature').classList.remove('hidden');
+            setTimeout(() => {
+                sigCanvas.width = sigCanvas.parentElement.clientWidth;
+                sigCanvas.height = sigCanvas.parentElement.clientHeight;
+                sigCtx.lineWidth = 3;
+                sigCtx.lineCap = 'round';
+                sigCtx.strokeStyle = '#0f0204';
+            }, 100);
+        }
+
+        function closeSignatureModal() { document.getElementById('modal-signature').classList.add('hidden'); }
+        function clearSignatureCanvas() { sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height); }
+        function saveSignatureCanvas() {
+            capturedSignatureData = sigCanvas.toDataURL('image/png');
+            document.getElementById('sig-status-txt').innerHTML = '<span class="text-ruby-400 font-bold"><i class="fa-solid fa-check"></i> Assinatura Salva</span>';
+            closeSignatureModal();
+            showToast('Assinatura gravada com sucesso!');
+        }
+
+        // POPULATE TÉCNICOS
+        function populateTechDropdowns() {
+            const select = document.getElementById('loan-tech-select');
+            select.innerHTML = '<option value="">-- Selecione o Técnico --</option>';
+            Object.keys(dbUsers).forEach(id => {
+                const u = dbUsers[id];
+                select.innerHTML += `<option value="${id}">${u.name} (${u.phone})</option>`;
+            });
+        }
+
+        // DASHBOARD KPIS & TABELA
+        function renderDashboard() {
+            const startDate = new Date(document.getElementById('dash-start-date').value);
+            const endDate = new Date(document.getElementById('dash-end-date').value);
+            endDate.setHours(23, 59, 59, 999);
+
+            document.getElementById('kpi-techs').textContent = Object.keys(dbUsers).length;
+
+            const activeLoansArray = Object.keys(dbLoans).map(id => ({ id, ...dbLoans[id] }));
+            document.getElementById('kpi-active').textContent = activeLoansArray.length;
+
+            let totalMeters = 0;
+            let alertCount = 0;
+            const now = new Date();
+
+            activeLoansArray.forEach(l => {
+                if (l.items) {
+                    l.items.forEach(i => totalMeters += parseFloat(i.meters) || 0);
+                }
+                const diffDays = Math.ceil(Math.abs(now - new Date(l.createdAt)) / (1000 * 60 * 60 * 24));
+                if (diffDays > 7) alertCount++;
+            });
+
+            document.getElementById('kpi-meters').textContent = totalMeters.toFixed(1) + 'm';
+            document.getElementById('kpi-alerts').textContent = alertCount;
+
+            const allRecords = [
+                ...activeLoansArray.map(l => ({ ...l, isFinished: false })),
+                ...Object.keys(dbHistory).map(id => ({ id, ...dbHistory[id], isFinished: true }))
+            ];
+
+            const filtered = allRecords.filter(r => {
+                const d = new Date(r.createdAt);
+                return d >= startDate && d <= endDate;
+            });
+
+            const tbody = document.getElementById('dash-report-tbody');
+            tbody.innerHTML = '';
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-500">Nenhuma movimentação registrada.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(r => {
+                const dt = new Date(r.createdAt).toLocaleString('pt-BR');
+                const itemsSummary = r.items ? r.items.map(i => `${i.material} (${i.meters}m - ${i.reel})`).join(', ') : '1 Item';
+                tbody.innerHTML += `
+                    <tr class="hover:bg-ruby-950/40">
+                        <td class="py-3 px-3 text-slate-400">${dt}</td>
+                        <td class="py-3 px-3 font-semibold text-white">${r.techName}</td>
+                        <td class="py-3 px-3 text-gold-500 font-medium">${itemsSummary}</td>
+                        <td class="py-3 px-3">
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${r.isFinished ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-ruby-500/20 text-ruby-400 border border-ruby-500/30'}">
+                                ${r.isFinished ? 'Devolvido' : 'Em Campo'}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        // CARDS EMPRÉSTIMOS ATIVOS
+        function renderActiveLoans() {
+            const grid = document.getElementById('active-loans-grid');
+            const query = document.getElementById('search-active-input').value.toLowerCase();
+            grid.innerHTML = '';
+
+            const loansArray = Object.keys(dbLoans).map(id => ({ id, ...dbLoans[id] }));
+            const filtered = loansArray.filter(l => l.techName.toLowerCase().includes(query));
+
+            if (filtered.length === 0) {
+                grid.innerHTML = `<div class="col-span-full py-12 text-center text-slate-500">Nenhum material em campo no momento.</div>`;
+                return;
+            }
+
+            const now = new Date();
+            filtered.forEach(loan => {
+                const diffDays = Math.ceil(Math.abs(now - new Date(loan.createdAt)) / (1000 * 60 * 60 * 24));
+                const itemsListHtml = loan.items.map(i => `
+                    <div class="flex justify-between items-center text-xs py-1 border-b border-ruby-900/40">
+                        <span class="text-slate-300 font-medium">${i.material}</span>
+                        <span class="text-gold-500 font-bold">${i.reel} (${i.meters}m)</span>
+                    </div>
+                `).join('');
+
+                grid.innerHTML += `
+                    <div class="glass-panel p-5 rounded-3xl border border-ruby-600/30 space-y-4 flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start gap-2">
+                                <h3 class="font-extrabold text-white text-sm">${loan.techName}</h3>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${diffDays > 7 ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-ruby-950 text-ruby-400'}">
+                                    ${diffDays} dias em campo
+                                </span>
+                            </div>
+                            <div class="mt-3 bg-slate-950 p-2.5 rounded-xl border border-ruby-900 space-y-1">
+                                ${itemsListHtml}
+                            </div>
+                        </div>
+
+                        <div class="pt-3 border-t border-ruby-900 flex items-center justify-between gap-1 flex-wrap">
+                            <div class="flex gap-1.5">
+                                <button onclick="generatePDF('${loan.id}')" class="p-2 bg-slate-900 text-gold-500 rounded-xl hover:bg-ruby-950 border border-ruby-600/30" title="Gerar PDF">
+                                    <i class="fa-solid fa-file-pdf"></i>
+                                </button>
+                                <button onclick="sendWhatsApp('${loan.id}')" class="p-2 bg-emerald-950 text-emerald-400 rounded-xl hover:bg-emerald-900 border border-emerald-500/30" title="WhatsApp">
+                                    <i class="fa-brands fa-whatsapp"></i>
+                                </button>
+                            </div>
+                            <button onclick="returnLoan('${loan.id}')" class="px-3.5 py-2 btn-led-red rounded-xl text-xs font-bold">
+                                Registrar Devolução
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // DEVOLUÇÃO
+        function returnLoan(loanId) {
+            const loan = dbLoans[loanId];
+            if (!loan) return;
+            const historyItem = { ...loan, returnedAt: new Date().toISOString() };
+            db.ref(`history/${loanId}`).set(historyItem, (err) => {
+                if (!err) {
+                    db.ref(`loans/${loanId}`).remove();
+                    showToast('Devolução concluída!');
+                }
+            });
+        }
+
+        // WHATSAPP
+        function sendWhatsApp(loanId) {
+            const loan = dbLoans[loanId] || dbHistory[loanId];
+            if (!loan || !loan.techPhone) {
+                showToast('Telefone do técnico não informado!', 'error');
+                return;
+            }
+            const itemsText = loan.items.map(i => `• ${i.material}: ${i.meters}m (Bobina: ${i.reel})`).join('\n');
+            const msg = `Olá *${loan.techName}*,\n\nConfirmamos a retirada dos seguintes materiais:\n${itemsText}\n\n📅 Data: ${new Date(loan.createdAt).toLocaleDateString('pt-BR')}\n\nFiberControl PWA.`;
+            window.open(`https://wa.me/${loan.techPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+
+        // PDF GENERATOR
+        function generatePDF(loanId) {
+            const loan = dbLoans[loanId] || dbHistory[loanId];
+            if (!loan) return;
+
+            document.getElementById('pdf-doc-date').textContent = new Date(loan.createdAt).toLocaleString('pt-BR');
+            document.getElementById('pdf-tech-name').textContent = loan.techName;
+            document.getElementById('pdf-tech-phone').textContent = loan.techPhone || 'Não informado';
+
+            const tbody = document.getElementById('pdf-items-tbody');
+            tbody.innerHTML = '';
+            loan.items.forEach(i => {
+                tbody.innerHTML += `
+                    <tr style="border-b:1px solid #e2e8f0;">
+                        <td style="padding:6px;">${i.material}</td>
+                        <td style="padding:6px;">${i.reel}</td>
+                        <td style="padding:6px;">${i.meters}m</td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('pdf-photo-img').src = loan.photoUrl;
+            document.getElementById('pdf-sig-img').src = loan.signatureUrl;
+
+            const element = document.getElementById('pdf-printable-area');
+            element.parentElement.classList.remove('hidden');
+
+            const opt = {
+                margin: 8,
+                filename: `Termo_Saida_${loan.techName.replace(/\s+/g, '_')}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().from(element).set(opt).save().then(() => {
+                element.parentElement.classList.add('hidden');
+                showToast('PDF gerado!');
+            });
+        }
+
+        // HISTÓRICO
+        function renderHistoryTable() {
+            const tbody = document.getElementById('history-tbody');
+            tbody.innerHTML = '';
+            const historyArray = Object.keys(dbHistory).map(id => ({ id, ...dbHistory[id] }));
+
+            if (historyArray.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-6 text-center text-slate-500">Nenhum histórico.</td></tr>`;
+                return;
+            }
+
+            historyArray.forEach(h => {
+                const itemsSummary = h.items ? h.items.map(i => `${i.material} (${i.meters}m)`).join(', ') : '';
+                tbody.innerHTML += `
+                    <tr class="hover:bg-ruby-950/40">
+                        <td class="py-3 px-3 font-semibold text-white">${h.techName}</td>
+                        <td class="py-3 px-3 text-gold-500">${itemsSummary}</td>
+                        <td class="py-3 px-3 text-slate-400">${new Date(h.createdAt).toLocaleDateString('pt-BR')}</td>
+                        <td class="py-3 px-3 text-emerald-400">${new Date(h.returnedAt).toLocaleDateString('pt-BR')}</td>
+                        <td class="py-3 px-3 text-slate-400">Admin</td>
+                    </tr>
+                `;
+            });
+        }
+
+        // EXPORT EXCEL
+        function exportToExcel() {
+            const allRecords = [
+                ...Object.keys(dbLoans).map(id => ({ ...dbLoans[id], status: 'Em Campo' })),
+                ...Object.keys(dbHistory).map(id => ({ ...dbHistory[id], status: 'Devolvido' }))
+            ];
+
+            const excelData = allRecords.map(r => ({
+                'Data Criacao': new Date(r.createdAt).toLocaleString('pt-BR'),
+                'Tecnico': r.techName,
+                'Telefone': r.techPhone,
+                'Materiais': r.items ? r.items.map(i => `${i.material} (${i.meters}m / ${i.reel})`).join(' | ') : '',
+                'Status': r.status
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(excelData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Saidas");
+            XLSX.writeFile(workbook, `FiberControl_${new Date().toISOString().slice(0,10)}.xlsx`);
+            showToast('Relatório Excel gerado!');
+        }
+
+        function exportJSONBackup() {
+            const fullData = { techs: dbUsers, materials: dbMaterials, loans: dbLoans, history: dbHistory };
+            const blob = new Blob([JSON.stringify(fullData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `backup_cabos_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            showToast('Backup baixado!');
+        }
+
+        // ADMIN CADASTRO TÉCNICOS & MATERIAIS
+        function renderUsersTable() {
+            const tbody = document.getElementById('users-tbody');
+            tbody.innerHTML = '';
+            Object.keys(dbUsers).forEach(id => {
+                const u = dbUsers[id];
+                tbody.innerHTML += `
+                    <tr class="hover:bg-ruby-950/40">
+                        <td class="py-2.5 px-3 font-semibold text-white">${u.name}</td>
+                        <td class="py-2.5 px-3 text-slate-400">${u.phone}</td>
+                        <td class="py-2.5 px-3 text-right">
+                            <button onclick="deleteUserFirebase('${id}')" class="p-1.5 bg-red-950 text-red-400 rounded-lg hover:bg-red-900"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function openUserModal() { document.getElementById('modal-user').classList.remove('hidden'); }
+        function closeUserModal() { document.getElementById('modal-user').classList.add('hidden'); }
+        function saveUserFirebase() {
+            const name = document.getElementById('usr-name').value.trim();
+            const phone = document.getElementById('usr-phone').value.trim();
+            if (!name || !phone) return showToast('Preencha nome e telefone!', 'error');
+
+            db.ref('techs').push({ name, phone }, (err) => {
+                if (!err) {
+                    showToast('Técnico salvo com sucesso!');
+                    closeUserModal();
+                }
+            });
+        }
+        function deleteUserFirebase(id) {
+            db.ref(`techs/${id}`).remove();
+            showToast('Técnico excluído.');
+        }
+
+        function renderMaterialsTable() {
+            const tbody = document.getElementById('materials-tbody');
+            tbody.innerHTML = '';
+            Object.keys(dbMaterials).forEach(id => {
+                const m = dbMaterials[id];
+                tbody.innerHTML += `
+                    <tr class="hover:bg-ruby-950/40">
+                        <td class="py-2.5 px-3 font-semibold text-white">${m.name}</td>
+                        <td class="py-2.5 px-3 text-slate-400">${m.unit}</td>
+                        <td class="py-2.5 px-3 text-right">
+                            <button onclick="deleteMaterialFirebase('${id}')" class="p-1.5 bg-red-950 text-red-400 rounded-lg hover:bg-red-900"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function openMaterialModal() { document.getElementById('modal-material').classList.remove('hidden'); }
+        function closeMaterialModal() { document.getElementById('modal-material').classList.add('hidden'); }
+        function saveMaterialFirebase() {
+            const name = document.getElementById('mat-name').value.trim();
+            const unit = document.getElementById('mat-unit').value;
+            if (!name) return;
+
+            db.ref('materials').push({ name, unit }, (err) => {
+                if (!err) {
+                    showToast('Material cadastrado!');
+                    closeMaterialModal();
+                }
+            });
+        }
+        function deleteMaterialFirebase(id) {
+            db.ref(`materials/${id}`).remove();
+            showToast('Material excluído.');
+        }
+    </script>
+</body>
+</html>
